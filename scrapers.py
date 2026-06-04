@@ -38,9 +38,17 @@ def get_episode_date(url: str) -> str | None:
         soup = BeautifulSoup(res.text, "html.parser")
         text = soup.get_text(" ")
 
-        m = re.search(r"(20\d{2}/\d{2}/\d{2})", text)
+        # 例: 2026年05月29日
+        m = re.search(r"(20\d{2})年(\d{1,2})月(\d{1,2})日", text)
         if m:
-            return m.group(1)
+            year, month, day = m.groups()
+            return f"{year}/{int(month):02d}/{int(day):02d}"
+
+        # 例: 2026/05/29
+        m = re.search(r"(20\d{2})/(\d{1,2})/(\d{1,2})", text)
+        if m:
+            year, month, day = m.groups()
+            return f"{year}/{int(month):02d}/{int(day):02d}"
 
     except Exception as e:
         print(f"開始日取得失敗: {url} / {e}")
