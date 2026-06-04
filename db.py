@@ -11,6 +11,7 @@ def connect():
 
 def init_db():
     con = connect()
+
     con.execute("""
     CREATE TABLE IF NOT EXISTS works (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,36 +19,38 @@ def init_db():
         platform TEXT NOT NULL,
         url TEXT,
         source TEXT,
+        start_date TEXT,
         detected_at TEXT NOT NULL,
         UNIQUE(title, platform)
     )
     """)
-    con.execute("""
-    CREATE TABLE IF NOT EXISTS weekly_stats (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        work_id INTEGER NOT NULL,
-        week_start TEXT NOT NULL,
-        mention_count INTEGER DEFAULT 0,
-        buzz_score REAL DEFAULT 0,
-        created_at TEXT NOT NULL,
-        UNIQUE(work_id, week_start),
-        FOREIGN KEY(work_id) REFERENCES works(id)
-    )
-    """)
+
+    # 古いDB向け：start_date列がなければ追加
+    try:
+        con.execute("ALTER TABLE works ADD COLUMN start_date TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     con.commit()
     con.close()
 
-def upsert_work(title: str, platform: str, url: str | None, source: str):
+def upsert_work(title, platform, url, source, start_date=None):
     now = datetime.now(timezone.utc).isoformat()
     con = connect()
+
     con.execute("""
-    INSERT OR IGNORE INTO works(title, platform, url, source, detected_at)
-    VALUES (?, ?, ?, ?, ?)
-    """, (title, platform, url, source, now))
+    INSERT INTO works(title, platform, url, source, start_date, detected_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(title, platform) DO UPDATE SET
+        url = excluded.url,
+        source = excluded.source,
+        start_date = excluded.start_date
+    """, (title, platform, url, source, start_date, now))
+
     con.commit()
     con.close()
 
-def list_recent_works(limit: int = 20):
+def list_recent_works(limit=20):
     con = connect()
     rows = con.execute("""
     SELECT * FROM works
