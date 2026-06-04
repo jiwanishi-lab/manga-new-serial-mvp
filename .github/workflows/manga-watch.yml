@@ -1,9 +1,9 @@
-name: Manga Watch
+name: IP Radar AI Weekly Report
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 23 * * 0"
+    - cron: "0 23 * * 0" # Monday 08:00 JST
 
 jobs:
   run:
@@ -16,11 +16,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install
+      - name: Install dependencies
         run: |
           pip install -r requirements.txt
 
-      - name: Run
+      - name: Run IP Radar AI
         run: |
           python run.py
         env:
