@@ -2,6 +2,7 @@ from db import init_db, upsert_work, list_recent_works
 from scrapers import scrape_all
 from report import build_email_html
 from mail import send_email
+from x_counts import get_x_post_count
 
 def main():
     init_db()
