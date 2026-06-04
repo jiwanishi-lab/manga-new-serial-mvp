@@ -1,4 +1,4 @@
-print("DEBUG: run.py version = start_date_v2")
+print("DEBUG: run.py version = start_date_v3")
 
 from db import init_db, upsert_work, list_recent_works
 from scrapers import scrape_all
@@ -36,11 +36,11 @@ def main():
         enriched_works.append(enriched)
 
         print(
-            f"- {w['title']} / "
-            f"{w['platform']} / "
-            f"開始日: {w.get('start_date')} / "
+            f"- {enriched['title']} / "
+            f"{enriched['platform']} / "
+            f"開始日: {enriched.get('start_date')} / "
             f"Google Trends: {trend_score} / "
-            f"{w['url']}"
+            f"{enriched['url']}"
         )
 
     html = build_email_html(enriched_works)
