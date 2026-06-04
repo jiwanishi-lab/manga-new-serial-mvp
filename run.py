@@ -30,14 +30,15 @@ def main():
 
         enriched = dict(w)
         enriched["trend_score"] = trend_score
+        enriched["start_date"] = w.get("start_date")
         enriched_works.append(enriched)
 
         print(
-            f"- {w['title']} / "
-            f"{w['platform']} / "
-            f"Google Trends: {trend_score} / "
-            f"{w['url']}"
-        )
+    f"- {w['title']} / "
+    f"{w['platform']} / "
+    f"開始日: {w.get('start_date')} / "
+    f"Google Trends: {trend_score}"
+)
 
     html = build_email_html(enriched_works)
     send_email("今週の新連載レポート", html)
