@@ -1,48 +1,59 @@
-from db import init_db, upsert_work, list_recent_works
-from scrapers import scrape_all
-from report import build_email_html
-from mail import send_email
-from google_trends import get_trend_score
+from datetime import datetime
+from html import escape
 
 
-def main():
-    init_db()
+def build_email_html(works):
+    today = datetime.now().strftime("%Y/%m/%d")
 
-    print("新連載候補を取得中...")
-    items = scrape_all()
+    if not works:
+        items = "<p>今週の新連載候補はまだ検知されていません。</p>"
+    else:
+        rows = []
 
-    for item in items:
-        upsert_work(
-            title=item["title"],
-            platform=item["platform"],
-            url=item["url"],
-            source=item["source"],
-        )
+        for i, w in enumerate(works, start=1):
+            title = escape(w["title"])
+            platform = escape(w["platform"])
+            url = escape(w["url"] or "")
+            trend_score = w.get("trend_score", 0)
+            start_date = w.get("start_date") or "不明"
 
-    works = list_recent_works(limit=20)
+            link = f'<a href="{url}">{title}</a>' if url else title
 
-    print(f"{len(items)}件の候補を取得しました。")
+            rows.append(f"""
+            <tr>
+              <td>{i}</td>
+              <td>{link}</td>
+              <td>{platform}</td>
+              <td>{start_date}</td>
+              <td>{trend_score}</td>
+            </tr>
+            """)
 
-    enriched_works = []
+        items = f"""
+        <table border="1" cellpadding="8" cellspacing="0">
+          <tr>
+            <th>#</th>
+            <th>作品</th>
+            <th>媒体</th>
+            <th>開始日</th>
+            <th>Google Trends / 直近7日</th>
+          </tr>
+          {''.join(rows)}
+        </table>
+        """
 
-    for w in works:
-        trend_score = get_trend_score(w["title"])
+    return f"""
+    <html>
+      <body>
+        <h2>🆕 今週の新連載レポート（{today}）</h2>
 
-        enriched = dict(w)
-        enriched["trend_score"] = trend_score
-        enriched["start_date"] = w.get("start_date")
-        enriched_works.append(enriched)
+        <h3>新連載候補 + Google Trends</h3>
+        {items}
 
-        print(
-    f"- {w['title']} / "
-    f"{w['platform']} / "
-    f"開始日: {w.get('start_date')} / "
-    f"Google Trends: {trend_score}"
-)
+        <hr>
 
-    html = build_email_html(enriched_works)
-    send_email("今週の新連載レポート", html)
-
-
-if __name__ == "__main__":
-    main()
+        <h3>🔥 4週間前の答え合わせ</h3>
+        <p>次フェーズで実装します。</p>
+      </body>
+    </html>
+    """
