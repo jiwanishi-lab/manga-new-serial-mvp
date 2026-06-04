@@ -2,7 +2,7 @@ from db import init_db, upsert_work, list_recent_works
 from scrapers import scrape_all
 from report import build_email_html
 from mail import send_email
-from x_counts import get_x_post_count
+from google_trends import get_trend_score
 
 
 def main():
@@ -26,16 +26,16 @@ def main():
     enriched_works = []
 
     for w in works:
-        x_count = get_x_post_count(w["title"])
+        trend_score = get_trend_score(w["title"])
 
         enriched = dict(w)
-        enriched["x_post_count"] = x_count
+        enriched["trend_score"] = trend_score
         enriched_works.append(enriched)
 
         print(
             f"- {w['title']} / "
             f"{w['platform']} / "
-            f"X投稿数: {x_count} / "
+            f"Google Trends: {trend_score} / "
             f"{w['url']}"
         )
 
