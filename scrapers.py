@@ -12,26 +12,17 @@ def clean_text(text: str) -> str:
     return text
 
 def guess_title_from_text(text: str) -> str | None:
-    """
-    ジャンプ+トップのような表示から作品名っぽい部分を拾う簡易ロジック。
-    例:
-      "[第1話]ルノリータ 棉きのし"
-      "明治時代にネット開通!! 世界を繋ぎ尽くすインターネット巫女 コガッツオ/木野イチカ 新連載"
-    """
     text = clean_text(text)
     if not text:
         return None
 
-    # [第1話]タイトル 作者 のパターン
     m = re.search(r"\[(?:第)?1話\]\s*([^ ]+)", text)
     if m:
         return m.group(1).strip("「」『』[] ")
 
-    # 「新連載」の直前周辺を使う
     if "新連載" in text:
         before = text.split("新連載")[0].strip()
         parts = before.split()
-        # 作者名らしき最後の1要素を落とし、直前の塊をタイトル候補にする
         if len(parts) >= 2:
             return parts[-2].strip("「」『』[] ")
         if parts:
@@ -39,11 +30,24 @@ def guess_title_from_text(text: str) -> str | None:
 
     return None
 
+def get_episode_date(url: str) -> str | None:
+    try:
+        res = requests.get(url, headers=HEADERS, timeout=20)
+        res.raise_for_status()
+
+        soup = BeautifulSoup(res.text, "html.parser")
+        text = soup.get_text(" ")
+
+        m = re.search(r"(20\d{2}/\d{2}/\d{2})", text)
+        if m:
+            return m.group(1)
+
+    except Exception as e:
+        print(f"開始日取得失敗: {url} / {e}")
+
+    return None
+
 def scrape_jump_plus():
-    """
-    少年ジャンプ+トップから「新連載」または「[第1話]」を含むリンク周辺を候補として抽出。
-    公式トップには新連載枠や第1話リンクが表示されるため、MVPではここから拾う。
-    """
     url = "https://shonenjumpplus.com/"
     res = requests.get(url, headers=HEADERS, timeout=20)
     res.raise_for_status()
@@ -59,13 +63,18 @@ def scrape_jump_plus():
 
         if ("新連載" in text) or ("[第1話]" in text) or ("[1話]" in text):
             title = guess_title_from_text(text)
+            episode_url = urljoin(url, href) if href else url
+
             if title and len(title) >= 2:
+                start_date = get_episode_date(episode_url)
+
                 candidates[title] = {
                     "title": title,
                     "platform": "少年ジャンプ+",
-                    "url": urljoin(url, href) if href else url,
+                    "url": episode_url,
                     "source": "shonenjumpplus_top",
                     "raw_text": text,
+                    "start_date": start_date,
                 }
 
     return list(candidates.values())
