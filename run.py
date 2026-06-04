@@ -1,3 +1,5 @@
+print("DEBUG: run.py version = start_date_v2")
+
 from db import init_db, upsert_work, list_recent_works
 from scrapers import scrape_all
 from report import build_email_html
