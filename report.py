@@ -14,6 +14,7 @@ def build_email_html(works):
             title = escape(w["title"])
             platform = escape(w["platform"])
             url = escape(w["url"] or "")
+            start_date = w.get("start_date") or "不明"
             trend_score = w.get("trend_score", 0)
 
             link = f'<a href="{url}">{title}</a>' if url else title
@@ -23,6 +24,7 @@ def build_email_html(works):
               <td>{i}</td>
               <td>{link}</td>
               <td>{platform}</td>
+              <td>{start_date}</td>
               <td>{trend_score}</td>
             </tr>
             """)
@@ -33,6 +35,7 @@ def build_email_html(works):
             <th>#</th>
             <th>作品</th>
             <th>媒体</th>
+            <th>開始日</th>
             <th>Google Trends / 直近7日</th>
           </tr>
           {''.join(rows)}
@@ -54,4 +57,3 @@ def build_email_html(works):
       </body>
     </html>
     """
-
