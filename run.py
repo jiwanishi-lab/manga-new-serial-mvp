@@ -1,10 +1,23 @@
-print("DEBUG: run.py version = start_date_v3")
+print("DEBUG: run.py version = comic_days_debug_v1")
 
+from pathlib import Path
+
+import scrapers
 from db import init_db, upsert_work, list_recent_works
 from scrapers import scrape_all
 from report import build_email_html
 from mail import send_email
 from google_trends import get_trend_score
+
+
+print("DEBUG: scrapers file =", scrapers.__file__)
+
+scrapers_text = Path(scrapers.__file__).read_text(encoding="utf-8")
+
+print("DEBUG: pickup url exists =", "comic-days.com/pickup" in scrapers_text)
+print("DEBUG: comic days debug exists =", "コミックDAYS取得開始" in scrapers_text)
+print("DEBUG: scrape_comic_days exists =", "def scrape_comic_days" in scrapers_text)
+print("DEBUG: scrape_all calls comic days =", "scrape_comic_days()" in scrapers_text)
 
 
 def main():
@@ -13,7 +26,17 @@ def main():
     print("新連載候補を取得中...")
     items = scrape_all()
 
+    print(f"DEBUG: scrape_all returned item_count={len(items)}")
+
     for item in items:
+        print(
+            "DEBUG: scraped item = "
+            f"{item.get('title')} / "
+            f"{item.get('platform')} / "
+            f"{item.get('start_date')} / "
+            f"{item.get('url')}"
+        )
+
         upsert_work(
             title=item["title"],
             platform=item["platform"],
