@@ -1,23 +1,10 @@
-print("DEBUG: run.py version = comic_days_debug_v1")
+print("DEBUG: run.py version = sort_by_start_date_v1")
 
-from pathlib import Path
-
-import scrapers
 from db import init_db, upsert_work, list_recent_works
 from scrapers import scrape_all
 from report import build_email_html
 from mail import send_email
 from google_trends import get_trend_score
-
-
-print("DEBUG: scrapers file =", scrapers.__file__)
-
-scrapers_text = Path(scrapers.__file__).read_text(encoding="utf-8")
-
-print("DEBUG: pickup url exists =", "comic-days.com/pickup" in scrapers_text)
-print("DEBUG: comic days debug exists =", "コミックDAYS取得開始" in scrapers_text)
-print("DEBUG: scrape_comic_days exists =", "def scrape_comic_days" in scrapers_text)
-print("DEBUG: scrape_all calls comic days =", "scrape_comic_days()" in scrapers_text)
 
 
 def main():
@@ -65,6 +52,11 @@ def main():
             f"Google Trends: {trend_score} / "
             f"{enriched['url']}"
         )
+
+    enriched_works.sort(
+        key=lambda x: x.get("start_date") or "",
+        reverse=True,
+    )
 
     html = build_email_html(enriched_works)
     send_email("今週の新連載レポート", html)
