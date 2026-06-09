@@ -13,6 +13,28 @@ def clean_text(text: str) -> str:
     return text
 
 
+def normalize_date(year: str, month: str, day: str) -> str:
+    return f"{year}/{int(month):02d}/{int(day):02d}"
+
+
+def extract_date_from_text(text: str) -> str | None:
+    text = clean_text(text)
+
+    m = re.search(r"(20\d{2})年(\d{1,2})月(\d{1,2})日", text)
+    if m:
+        return normalize_date(*m.groups())
+
+    m = re.search(r"(20\d{2})/(\d{1,2})/(\d{1,2})", text)
+    if m:
+        return normalize_date(*m.groups())
+
+    m = re.search(r"(20\d{2})-(\d{1,2})-(\d{1,2})", text)
+    if m:
+        return normalize_date(*m.groups())
+
+    return None
+
+
 def guess_title_from_text(text: str) -> str | None:
     text = clean_text(text)
     if not text:
@@ -41,15 +63,7 @@ def get_episode_date(url: str) -> str | None:
         soup = BeautifulSoup(res.text, "html.parser")
         text = soup.get_text(" ")
 
-        m = re.search(r"(20\d{2})年(\d{1,2})月(\d{1,2})日", text)
-        if m:
-            year, month, day = m.groups()
-            return f"{year}/{int(month):02d}/{int(day):02d}"
-
-        m = re.search(r"(20\d{2})/(\d{1,2})/(\d{1,2})", text)
-        if m:
-            year, month, day = m.groups()
-            return f"{year}/{int(month):02d}/{int(day):02d}"
+        return extract_date_from_text(text)
 
     except Exception as e:
         print(f"開始日取得失敗: {url} / {e}")
@@ -68,6 +82,7 @@ def scrape_jump_plus():
     for a in soup.find_all("a"):
         text = clean_text(a.get_text(" "))
         href = a.get("href")
+
         if not text:
             continue
 
@@ -86,6 +101,8 @@ def scrape_jump_plus():
                     "raw_text": text,
                     "start_date": start_date,
                 }
+
+    print(f"DEBUG: 少年ジャンプ+ result_count={len(candidates)}")
 
     return list(candidates.values())
 
@@ -130,15 +147,7 @@ def get_comic_days_start_date(url: str) -> str | None:
         soup = BeautifulSoup(res.text, "html.parser")
         text = soup.get_text(" ")
 
-        m = re.search(r"(20\d{2})年(\d{1,2})月(\d{1,2})日", text)
-        if m:
-            year, month, day = m.groups()
-            return f"{year}/{int(month):02d}/{int(day):02d}"
-
-        m = re.search(r"(20\d{2})/(\d{1,2})/(\d{1,2})", text)
-        if m:
-            year, month, day = m.groups()
-            return f"{year}/{int(month):02d}/{int(day):02d}"
+        return extract_date_from_text(text)
 
     except Exception as e:
         print(f"コミックDAYS開始日取得失敗: {url} / {e}")
@@ -147,43 +156,70 @@ def get_comic_days_start_date(url: str) -> str | None:
 
 
 def scrape_comic_days():
-    url = "https://comic-days.com/"
+    print("DEBUG: コミックDAYS取得開始")
+
+    url = "https://comic-days.com/pickup"
     res = requests.get(url, headers=HEADERS, timeout=20)
     res.raise_for_status()
 
     soup = BeautifulSoup(res.text, "html.parser")
-    candidates = {}
+    all_links = soup.find_all("a")
 
-    for a in soup.find_all("a"):
+    print(f"DEBUG: コミックDAYS aタグ数={len(all_links)}")
+
+    candidates = {}
+    checked_count = 0
+    new_word_count = 0
+
+    for a in all_links:
         text = clean_text(a.get_text(" "))
         href = a.get("href")
 
         if not text or not href:
             continue
 
-        if "新作" not in text:
-            continue
+        checked_count += 1
 
-        title = guess_comic_days_title(text)
-        work_url = urljoin(url, href)
+        if "新作" in text:
+            new_word_count += 1
+            print(f"DEBUG: コミックDAYS新作候補: {text[:120]} / {href}")
 
-        if title and len(title) >= 2:
-            start_date = get_comic_days_start_date(work_url)
+            title = guess_comic_days_title(text)
+            work_url = urljoin(url, href)
 
-            candidates[title] = {
-                "title": title,
-                "platform": "コミックDAYS",
-                "url": work_url,
-                "source": "comic_days_newtopic",
-                "raw_text": text,
-                "start_date": start_date,
-            }
+            if title and len(title) >= 2:
+                start_date = get_comic_days_start_date(work_url)
+
+                candidates[title] = {
+                    "title": title,
+                    "platform": "コミックDAYS",
+                    "url": work_url,
+                    "source": "comic_days_pickup",
+                    "raw_text": text,
+                    "start_date": start_date,
+                }
+
+    print(
+        "DEBUG: コミックDAYS "
+        f"checked_count={checked_count}, "
+        f"new_word_count={new_word_count}, "
+        f"result_count={len(candidates)}"
+    )
 
     return list(candidates.values())
 
 
 def scrape_all():
     results = []
-    results.extend(scrape_jump_plus())
-    results.extend(scrape_comic_days())
+
+    jump_plus_results = scrape_jump_plus()
+    print(f"DEBUG: scrape_all 少年ジャンプ+={len(jump_plus_results)}")
+    results.extend(jump_plus_results)
+
+    comic_days_results = scrape_comic_days()
+    print(f"DEBUG: scrape_all コミックDAYS={len(comic_days_results)}")
+    results.extend(comic_days_results)
+
+    print(f"DEBUG: scrape_all total={len(results)}")
+
     return results
