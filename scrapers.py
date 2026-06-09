@@ -1,11 +1,15 @@
 import re
+from datetime import datetime, timedelta
 from urllib.parse import urljoin
+
 import requests
 from bs4 import BeautifulSoup
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 manga-new-serial-mvp/0.1"
 }
+
+RECENT_DAYS = 7
 
 
 def clean_text(text: str) -> str:
@@ -33,6 +37,18 @@ def extract_date_from_text(text: str) -> str | None:
         return normalize_date(*m.groups())
 
     return None
+
+
+def is_recent_date(date_text: str | None, days: int = RECENT_DAYS) -> bool:
+    if not date_text:
+        return False
+
+    try:
+        target = datetime.strptime(date_text, "%Y/%m/%d")
+        cutoff = datetime.now() - timedelta(days=days)
+        return target >= cutoff
+    except Exception:
+        return False
 
 
 def guess_title_from_text(text: str) -> str | None:
@@ -92,6 +108,9 @@ def scrape_jump_plus():
 
             if title and len(title) >= 2:
                 start_date = get_episode_date(episode_url)
+
+                if not is_recent_date(start_date):
+                    continue
 
                 candidates[title] = {
                     "title": title,
@@ -170,6 +189,7 @@ def scrape_comic_days():
     candidates = {}
     checked_count = 0
     new_word_count = 0
+    recent_count = 0
 
     for a in all_links:
         text = clean_text(a.get_text(" "))
@@ -180,29 +200,38 @@ def scrape_comic_days():
 
         checked_count += 1
 
-        if "新作" in text:
-            new_word_count += 1
-            print(f"DEBUG: コミックDAYS新作候補: {text[:120]} / {href}")
+        if "新作" not in text:
+            continue
 
-            title = guess_comic_days_title(text)
-            work_url = urljoin(url, href)
+        new_word_count += 1
+        print(f"DEBUG: コミックDAYS新作候補: {text[:120]} / {href}")
 
-            if title and len(title) >= 2:
-                start_date = get_comic_days_start_date(work_url)
+        title = guess_comic_days_title(text)
+        work_url = urljoin(url, href)
 
-                candidates[title] = {
-                    "title": title,
-                    "platform": "コミックDAYS",
-                    "url": work_url,
-                    "source": "comic_days_pickup",
-                    "raw_text": text,
-                    "start_date": start_date,
-                }
+        if title and len(title) >= 2:
+            start_date = get_comic_days_start_date(work_url)
+
+            if not is_recent_date(start_date):
+                print(f"DEBUG: コミックDAYS除外: {title} / start_date={start_date}")
+                continue
+
+            recent_count += 1
+
+            candidates[title] = {
+                "title": title,
+                "platform": "コミックDAYS",
+                "url": work_url,
+                "source": "comic_days_pickup",
+                "raw_text": text,
+                "start_date": start_date,
+            }
 
     print(
         "DEBUG: コミックDAYS "
         f"checked_count={checked_count}, "
         f"new_word_count={new_word_count}, "
+        f"recent_count={recent_count}, "
         f"result_count={len(candidates)}"
     )
 
