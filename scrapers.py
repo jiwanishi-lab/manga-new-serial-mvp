@@ -51,6 +51,13 @@ def is_recent_date(date_text: str | None, days: int = RECENT_DAYS) -> bool:
         return False
 
 
+def fetch_text(url: str) -> str:
+    res = requests.get(url, headers=HEADERS, timeout=20)
+    res.raise_for_status()
+    soup = BeautifulSoup(res.text, "html.parser")
+    return soup.get_text(" ")
+
+
 def guess_title_from_text(text: str) -> str | None:
     text = clean_text(text)
     if not text:
@@ -73,14 +80,7 @@ def guess_title_from_text(text: str) -> str | None:
 
 def get_episode_date(url: str) -> str | None:
     try:
-        res = requests.get(url, headers=HEADERS, timeout=20)
-        res.raise_for_status()
-
-        soup = BeautifulSoup(res.text, "html.parser")
-        text = soup.get_text(" ")
-
-        return extract_date_from_text(text)
-
+        return extract_date_from_text(fetch_text(url))
     except Exception as e:
         print(f"開始日取得失敗: {url} / {e}")
 
@@ -160,14 +160,7 @@ def guess_comic_days_title(text: str) -> str | None:
 
 def get_comic_days_start_date(url: str) -> str | None:
     try:
-        res = requests.get(url, headers=HEADERS, timeout=20)
-        res.raise_for_status()
-
-        soup = BeautifulSoup(res.text, "html.parser")
-        text = soup.get_text(" ")
-
-        return extract_date_from_text(text)
-
+        return extract_date_from_text(fetch_text(url))
     except Exception as e:
         print(f"コミックDAYS開始日取得失敗: {url} / {e}")
 
@@ -184,12 +177,7 @@ def scrape_comic_days():
     soup = BeautifulSoup(res.text, "html.parser")
     all_links = soup.find_all("a")
 
-    print(f"DEBUG: コミックDAYS aタグ数={len(all_links)}")
-
     candidates = {}
-    checked_count = 0
-    new_word_count = 0
-    recent_count = 0
 
     for a in all_links:
         text = clean_text(a.get_text(" "))
@@ -198,13 +186,8 @@ def scrape_comic_days():
         if not text or not href:
             continue
 
-        checked_count += 1
-
         if "新作" not in text:
             continue
-
-        new_word_count += 1
-        print(f"DEBUG: コミックDAYS新作候補: {text[:120]} / {href}")
 
         title = guess_comic_days_title(text)
         work_url = urljoin(url, href)
@@ -213,10 +196,7 @@ def scrape_comic_days():
             start_date = get_comic_days_start_date(work_url)
 
             if not is_recent_date(start_date):
-                print(f"DEBUG: コミックDAYS除外: {title} / start_date={start_date}")
                 continue
-
-            recent_count += 1
 
             candidates[title] = {
                 "title": title,
@@ -227,13 +207,93 @@ def scrape_comic_days():
                 "start_date": start_date,
             }
 
-    print(
-        "DEBUG: コミックDAYS "
-        f"checked_count={checked_count}, "
-        f"new_word_count={new_word_count}, "
-        f"recent_count={recent_count}, "
-        f"result_count={len(candidates)}"
-    )
+    print(f"DEBUG: コミックDAYS result_count={len(candidates)}")
+
+    return list(candidates.values())
+
+
+def guess_magapoke_title(text: str) -> str | None:
+    text = clean_text(text)
+    if not text:
+        return None
+
+    remove_phrases = [
+        "最新話更新",
+        "最新単行本",
+        "話分無料",
+        "巻発売中",
+        "毎週",
+        "隔週",
+        "毎月",
+        "日前後",
+    ]
+
+    for phrase in remove_phrases:
+        if phrase in text:
+            text = text.split(phrase)[0].strip()
+
+    parts = text.split()
+    if parts:
+        return parts[0].strip("「」『』[] ")
+
+    return None
+
+
+def get_magapoke_start_date(url: str) -> str | None:
+    try:
+        text = fetch_text(url)
+
+        # 作品ページに日付があれば拾う
+        date = extract_date_from_text(text)
+        if date:
+            return date
+
+    except Exception as e:
+        print(f"マガポケ開始日取得失敗: {url} / {e}")
+
+    return None
+
+
+def scrape_magapoke():
+    print("DEBUG: マガポケ取得開始")
+
+    url = "https://pocket.shonenmagazine.com/ranking/31"
+    res = requests.get(url, headers=HEADERS, timeout=20)
+    res.raise_for_status()
+
+    soup = BeautifulSoup(res.text, "html.parser")
+    candidates = {}
+
+    for a in soup.find_all("a"):
+        text = clean_text(a.get_text(" "))
+        href = a.get("href")
+
+        if not text or not href:
+            continue
+
+        # ランキング内の作品リンクっぽいものだけ拾う
+        if "最新話更新" not in text:
+            continue
+
+        title = guess_magapoke_title(text)
+        work_url = urljoin(url, href)
+
+        if title and len(title) >= 2:
+            start_date = get_magapoke_start_date(work_url)
+
+            if not is_recent_date(start_date):
+                continue
+
+            candidates[title] = {
+                "title": title,
+                "platform": "マガポケ",
+                "url": work_url,
+                "source": "magapoke_ranking_31",
+                "raw_text": text,
+                "start_date": start_date,
+            }
+
+    print(f"DEBUG: マガポケ result_count={len(candidates)}")
 
     return list(candidates.values())
 
@@ -248,6 +308,10 @@ def scrape_all():
     comic_days_results = scrape_comic_days()
     print(f"DEBUG: scrape_all コミックDAYS={len(comic_days_results)}")
     results.extend(comic_days_results)
+
+    magapoke_results = scrape_magapoke()
+    print(f"DEBUG: scrape_all マガポケ={len(magapoke_results)}")
+    results.extend(magapoke_results)
 
     print(f"DEBUG: scrape_all total={len(results)}")
 
